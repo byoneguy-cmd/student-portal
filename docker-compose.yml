@@ -1,0 +1,149 @@
+# Единый студенческий портал — инфраструктура и приложения.
+# Инфраструктура поднимается всегда:  docker compose up -d
+# Приложения (api, web) — отдельным профилем: docker compose --profile app up -d --build
+name: student-portal
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sp-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-portal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-portal}
+      POSTGRES_DB: ${POSTGRES_DB:-student_portal}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-portal} -d ${POSTGRES_DB:-student_portal}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [sp-net]
+
+  redis:
+    image: redis:7-alpine
+    container_name: sp-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks: [sp-net]
+
+  minio:
+    image: bitnamilegacy/minio:2025.7.23-debian-12-r5
+    
+    container_name: sp-minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/bitnami/minio/data
+    networks: [sp-net]
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: sp-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-portal}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-portal}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MGMT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks: [sp-net]
+
+  opensearch:
+    image: opensearchproject/opensearch:2.15.0
+    container_name: sp-opensearch
+    environment:
+      - discovery.type=single-node
+      - plugins.security.disabled=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "${OPENSEARCH_PORT:-9200}:9200"
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    networks: [sp-net]
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: sp-keycloak
+    command: ["start-dev", "--import-realm", "--http-port=8080"]
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: ${POSTGRES_USER:-portal}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-portal}
+      KC_HOSTNAME: localhost
+    ports:
+      - "${KEYCLOAK_PORT:-8080}:8080"
+    volumes:
+      - ./infra/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [sp-net]
+
+  # ---- Приложения (профиль app) ----
+  api:
+    profiles: ["app"]
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: sp-api
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-portal}:${POSTGRES_PASSWORD:-portal}@postgres:5432/${POSTGRES_DB:-student_portal}?schema=public
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-portal}:${RABBITMQ_PASSWORD:-portal}@rabbitmq:5672
+      OPENSEARCH_URL: http://opensearch:9200
+      KEYCLOAK_ISSUER: http://localhost:${KEYCLOAK_PORT:-8080}/realms/student-portal
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    networks: [sp-net]
+
+  web:
+    profiles: ["app"]
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: sp-web
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: http://localhost:3000/api
+    ports:
+      - "3001:3000"
+    depends_on:
+      - api
+    networks: [sp-net]
+
+volumes:
+  pg_data:
+  redis_data:
+  minio_data:
+  rabbitmq_data:
+  opensearch_data:
+
+networks:
+  sp-net:
+    driver: bridge

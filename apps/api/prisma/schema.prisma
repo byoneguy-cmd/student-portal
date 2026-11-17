@@ -1,0 +1,1710 @@
+// =====================================================================
+// Prisma-схема «Единый студенческий портал» (Student Super-App)
+// Источник истины DDL: docs/02-database.md
+// Prisma 6 (multiSchema). PostgreSQL 16.
+//
+// ВАЖНО:
+// 1. Канонический DDL (ENUM-типы в схемах, CHECK-ограничения, триггеры,
+//    GIN-индексы, частичные индексы, партиционирование) находится в
+//    raw-SQL миграциях каталога migrations/ (V001..V012). Prisma здесь —
+//    только рантайм-ORM/генератор клиента, а НЕ источник миграций.
+// 2. ENUM-ы объявлены БЕЗ @@schema (тип в схеме public по умолчанию).
+//    Фактические PostgreSQL ENUM-типы создаются в своих схемах через
+//    V002__enums.sql (iam.user_status, doc.document_status и т.д.);
+//    для `prisma generate` колонка модели и enum не обязаны лежать в
+//    одной PostgreSQL-схеме.
+// 3. GIN-индексы (jsonb_path_ops), частичные уникальные индексы и
+//    CHECK-ограничения не представимы в Prisma — отмечены комментариями
+//    «только в raw SQL» и реализованы в миграциях.
+// =====================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["iam", "doc", "acc", "social", "acad", "svc", "notif", "ops", "public"]
+}
+
+// =====================================================================
+// ENUM-типы (раздел 3.1 docs/02-database.md)
+// Имя Prisma-enum = PascalCase имени PostgreSQL-типа без схемы.
+// =====================================================================
+
+// ---- IAM ----
+enum UserStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  GRADUATED
+  EXPELLED
+  ARCHIVED
+  @@schema("iam")
+}
+enum IdentityProvider {
+  EGOV_MOBILE
+  NCALAYER
+  PASSWORD
+  KEYCLOAK_SSO
+  EXTERNAL_LMS
+  @@schema("iam")
+}
+enum IdentityStatus {
+  LINKED
+  UNLINKED
+  SUSPENDED
+  @@schema("iam")
+}
+enum RoleType {
+  STUDENT
+  LECTURER
+  DEANERY
+  FINANCE
+  DORM_ADMIN
+  CANTEEN_ADMIN
+  ADMIN
+  @@schema("iam")
+}
+enum ImportSource {
+  SMART_DATA_UKIMET
+  NOBD
+  EGOV_MOBILE
+  GBD_FL
+  GBD_RN
+  MTSZN
+  MZ
+  MANUAL
+  @@schema("iam")
+}
+enum ImportStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  PARTIAL
+  @@schema("iam")
+}
+enum ConsentStatus {
+  GRANTED
+  REVOKED
+  EXPIRED
+  @@schema("iam")
+}
+enum ConsentScope {
+  PROFILE
+  DOCUMENTS
+  ACCOMMODATION
+  SOCIAL_BENEFITS
+  ACADEMIC
+  MEDICAL
+  FINANCIAL
+  ALL
+  @@schema("iam")
+}
+
+// ---- Document & Signature ----
+enum DocumentStatus {
+  DRAFT
+  PENDING_SIGNATURE
+  SIGNED
+  REJECTED
+  ARCHIVED
+  EXPIRED
+  @@schema("doc")
+}
+enum DocumentType {
+  APPLICATION
+  STATEMENT
+  CONTRACT
+  LEASE_CONTRACT
+  HANDOVER_ACT
+  CERTIFICATE
+  TRANSCRIPT
+  ORDER
+  CERTIFICATE_OF_STUDY
+  OTHER
+  @@schema("doc")
+}
+enum PackageStatus {
+  DRAFT
+  READY
+  SIGNING
+  PARTIALLY_SIGNED
+  SIGNED
+  ARCHIVED
+  @@schema("doc")
+}
+enum SignatureStatus {
+  PENDING
+  IN_PROGRESS
+  SIGNED
+  REJECTED
+  FAILED
+  REVOKED
+  @@schema("doc")
+}
+enum SignatureFormat {
+  CADES
+  XADES
+  PADES
+  @@schema("doc")
+}
+enum SignerType {
+  USER
+  UNIVERSITY
+  SYSTEM
+  @@schema("doc")
+}
+enum HashAlgorithm {
+  SHA_256 @map("SHA-256")
+  SHA_512 @map("SHA-512")
+  @@schema("doc")
+}
+
+// ---- Accommodation ----
+enum DormitoryStatus {
+  ACTIVE
+  INACTIVE
+  @@schema("acc")
+}
+enum RoomStatus {
+  FREE
+  OCCUPIED
+  PARTIALLY_OCCUPIED
+  RESERVED
+  MAINTENANCE
+  BLOCKED
+  @@schema("acc")
+}
+enum GenderPolicy {
+  MALE
+  FEMALE
+  MIXED
+  ANY
+  @@schema("acc")
+}
+enum ApplicationStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  WAITLIST
+  CANCELLED
+  @@schema("acc")
+}
+enum AllocationStatus {
+  PENDING_MOVE_IN
+  ACTIVE
+  TERMINATED
+  EVICTED
+  ARCHIVED
+  @@schema("acc")
+}
+
+// ---- Social Benefits ----
+enum EligibilityStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  REVOKED
+  @@schema("social")
+}
+enum MealApplicationStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+  CANCELLED
+  @@schema("social")
+}
+enum MealPeriod {
+  BREAKFAST
+  LUNCH
+  DINNER
+  ALL_DAY
+  @@schema("social")
+}
+
+// ---- Academic ----
+enum TermType {
+  SEMESTER
+  TRIMESTER
+  SUMMER
+  QUARTER
+  @@schema("acad")
+}
+enum EnrollmentStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  DROPPED
+  WITHDRAWN
+  @@schema("acad")
+}
+enum ScheduleEntryType {
+  LECTURE
+  PRACTICE
+  LAB
+  SEMINAR
+  EXAM
+  CONSULTATION
+  @@schema("acad")
+}
+enum Weekday {
+  MON
+  TUE
+  WED
+  THU
+  FRI
+  SAT
+  SUN
+  @@schema("acad")
+}
+enum GradeStatus {
+  PENDING
+  SUBMITTED
+  APPROVED
+  APPEALED
+  CHANGED
+  @@schema("acad")
+}
+enum AppealStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  RESOLVED
+  @@schema("acad")
+}
+enum ElectiveStatus {
+  OPEN
+  CLOSED
+  FULL
+  CANCELLED
+  @@schema("acad")
+}
+enum SubmissionStatus {
+  NOT_SUBMITTED
+  SUBMITTED
+  LATE
+  GRADED
+  RETURNED
+  RESUBMITTED
+  @@schema("acad")
+}
+enum QuizStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+  @@schema("acad")
+}
+enum QuizAttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  GRADED
+  TIMED_OUT
+  @@schema("acad")
+}
+enum ConversationType {
+  DIRECT
+  GROUP
+  COURSE
+  SUPPORT
+  @@schema("acad")
+}
+enum ConversationStatus {
+  ACTIVE
+  CLOSED
+  ARCHIVED
+  @@schema("acad")
+}
+enum MessageType {
+  TEXT
+  FILE
+  SYSTEM
+  @@schema("acad")
+}
+
+// ---- University Services ----
+enum CertificateStatus {
+  REQUESTED
+  ISSUED
+  REJECTED
+  REVOKED
+  EXPIRED
+  @@schema("svc")
+}
+enum CertificateType {
+  STUDY_CONFIRMATION
+  TRANSCRIPT
+  GRADE_SHEET
+  ENROLLMENT
+  SCHOLARSHIP
+  OTHER
+  @@schema("svc")
+}
+enum InvoiceStatus {
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+  VOID
+  @@schema("svc")
+}
+enum PaymentStatus {
+  CREATED
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  EXPIRED
+  @@schema("svc")
+}
+enum PaymentMethod {
+  CARD
+  EGOV_PAY
+  HALYK
+  BANK_TRANSFER
+  CASH
+  OTHER
+  @@schema("svc")
+}
+
+// ---- Notification & Ops ----
+enum NotificationChannel {
+  EMAIL
+  SMS
+  PUSH
+  IN_APP
+  @@schema("notif")
+}
+enum NotificationStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  CANCELLED
+  @@schema("notif")
+}
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+  @@schema("notif")
+}
+enum OutboxStatus {
+  PENDING
+  PUBLISHED
+  FAILED
+  DLQ
+  @@schema("ops")
+}
+
+// =====================================================================
+// IAM & Profile
+// =====================================================================
+
+/// Пользователь портала (студент/сотрудник/админ). Авторизация — Keycloak;
+/// здесь — проекция и доменные атрибуты.
+model User {
+  id                   BigInt     @id @default(autoincrement())
+  public_id            String     @unique @default(uuid()) @db.Uuid
+  iin                  String?    @db.VarChar(12) // шифротекст AES-256-GCM; в DDL — VARCHAR(12)
+  iin_token            String?    @unique @db.Char(64) // HMAC-SHA256(ИИН)
+  email                String?    @db.VarChar(320)
+  email_normalized     String?    @db.VarChar(320)
+  phone                String?    @db.VarChar(20)
+  keycloak_subject     String?    @unique @db.Uuid
+  status               UserStatus @default(PENDING)
+  locale               String     @default("ru") @db.VarChar(10)
+  timezone             String     @default("Asia/Qyzylorda") @db.VarChar(64)
+  is_pdn_consent_given Boolean    @default(false)
+  last_login_at        DateTime?  @db.Timestamptz(6)
+  created_at           DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime   @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by           String?    @db.Uuid
+  updated_by           String?    @db.Uuid
+
+  user_profile                     UserProfile?
+  user_identities                  UserIdentity[]
+  user_roles                       UserRole[]
+  user_consents                    UserConsent[]
+  external_data_imports            ExternalDataImport[]
+  documents                        Document[]
+  document_signatures              DocumentSignature[]
+  social_benefit_eligibilities     SocialBenefitEligibility[]
+  meal_applications                MealApplication[]
+  accommodation_applications       AccommodationApplication[]
+  room_allocations                 RoomAllocation[]
+  enrollments                      Enrollment[]
+  transcripts                      Transcript[]
+  appeals                          Appeal[]  @relation("AppealStudent")
+  reviewed_appeals                 Appeal[]  @relation("AppealReviewer")
+  submissions                      Submission[]
+  quiz_attempts                    QuizAttempt[]
+  conversations                    Conversation[]
+  conversation_participants        ConversationParticipant[]
+  messages                         Message[]
+  certificates                     Certificate[]
+  payment_invoices                 PaymentInvoice[]
+  payments                         Payment[]
+  notifications                    Notification[]
+  grades                           Grade[]
+  course_instances                 CourseInstance[]
+  schedule_entries                 ScheduleEntry[]
+  dormitories                      Dormitory[]
+
+  @@index([status])
+  @@index([email_normalized])
+  @@index([iin_token])
+  @@index([last_login_at(sort: Desc)])
+  @@map("users")
+  @@schema("iam")
+}
+
+/// Персональные данные пользователя (1:1 с users). Полный ИИН не дублируется.
+model UserProfile {
+  id                   BigInt    @id @default(autoincrement())
+  user_id              BigInt    @unique
+  first_name           String?   @db.VarChar(128)
+  last_name            String?   @db.VarChar(128)
+  middle_name          String?   @db.VarChar(128)
+  iin_short            String?   @db.Char(4)
+  birth_date           DateTime? @db.Date
+  gender               String?   @db.Char(1)
+  nationality          String?   @db.VarChar(64)
+  citizenship          String?   @db.VarChar(64)
+  home_address         String?
+  registration_address String?
+  document_type        String?   @db.VarChar(32)
+  document_number      String?   @db.VarChar(32)
+  document_issue_date  DateTime? @db.Date
+  emergency_contact    Json?
+  extra                Json      @default("{}")
+  deleted_at           DateTime? @db.Timestamptz(6)
+  created_at           DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by           String?   @db.Uuid
+  updated_by           String?   @db.Uuid
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([iin_short])
+  // GIN-индекс на extra (jsonb_path_ops) — только в raw SQL (V004__iam.sql)
+  @@map("user_profiles")
+  @@schema("iam")
+}
+
+/// Связь пользователя с внешними учётными записями (eGov Mobile, NCALayer/ЭЦП, LMS).
+model UserIdentity {
+  id                 BigInt           @id @default(autoincrement())
+  user_id            BigInt
+  provider           IdentityProvider
+  subject            String           @db.VarChar(255)
+  status             IdentityStatus   @default(LINKED)
+  certificate_serial String?          @db.VarChar(128)
+  certificate_issuer String?          @db.VarChar(255)
+  last_used_at       DateTime?        @db.Timestamptz(6)
+  created_at         DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime         @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by         String?          @db.Uuid
+  updated_by         String?          @db.Uuid
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([provider, subject])
+  @@index([user_id])
+  @@map("user_identities")
+  @@schema("iam")
+}
+
+/// Роли пользователя (проекция из Keycloak для FK/проверок в доменных сервисах).
+model UserRole {
+  id         BigInt    @id @default(autoincrement())
+  user_id    BigInt
+  role       RoleType
+  granted_at DateTime  @default(now()) @db.Timestamptz(6)
+  granted_by String?   @db.Uuid
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, role])
+  @@index([role])
+  @@map("user_roles")
+  @@schema("iam")
+}
+
+/// Журнал согласий на обработку персональных данных.
+model UserConsent {
+  id         BigInt        @id @default(autoincrement())
+  user_id    BigInt
+  scope      ConsentScope
+  status     ConsentStatus @default(GRANTED)
+  version    String        @db.VarChar(16)
+  granted_at DateTime      @default(now()) @db.Timestamptz(6)
+  revoked_at DateTime?     @db.Timestamptz(6)
+  ip_address String?       @db.Inet
+  user_agent String?
+  created_at DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at DateTime      @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by String?       @db.Uuid
+  updated_by String?       @db.Uuid
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@map("user_consents")
+  @@schema("iam")
+}
+
+/// Журнал импортов данных по ИИН (Smart Data Ukimet / НОБД / ГБД).
+model ExternalDataImport {
+  id            BigInt       @id @default(autoincrement())
+  public_id     String       @unique @default(uuid()) @db.Uuid
+  user_id       BigInt?
+  iin_token     String       @db.Char(64)
+  source        ImportSource
+  status        ImportStatus @default(PENDING)
+  request_id    String?      @db.VarChar(64)
+  payload       Json         @default("{}")
+  error_message String?
+  error_code    String?      @db.VarChar(64)
+  retry_count   Int          @default(0)
+  started_at    DateTime?    @db.Timestamptz(6)
+  completed_at  DateTime?    @db.Timestamptz(6)
+  created_at    DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime     @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by    String?      @db.Uuid
+  updated_by    String?      @db.Uuid
+
+  user                            User?                       @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  social_benefit_eligibilities    SocialBenefitEligibility[]
+
+  @@index([user_id])
+  @@index([iin_token])
+  @@index([status])
+  // GIN-индекс на payload (jsonb_path_ops) — только в raw SQL
+  @@map("external_data_imports")
+  @@schema("iam")
+}
+
+// =====================================================================
+// Document & Signature
+// =====================================================================
+
+/// Метаданные документов. Бинарные файлы — в MinIO; в БД — только метаданные и хэши.
+model Document {
+  id                 BigInt        @id @default(autoincrement())
+  public_id          String        @unique @default(uuid()) @db.Uuid
+  owner_user_id      BigInt
+  doc_type           DocumentType
+  status             DocumentStatus @default(DRAFT)
+  title              String        @db.VarChar(255)
+  description        String?
+  mime_type          String        @default("application/pdf") @db.VarChar(128)
+  storage_bucket     String        @db.VarChar(255)
+  storage_key        String        @db.VarChar(1024)
+  storage_checksum   String        @db.Char(64)
+  storage_size_bytes BigInt?
+  original_filename  String?       @db.VarChar(512)
+  template_id        String?       @db.VarChar(64)
+  metadata           Json          @default("{}")
+  signed_at          DateTime?     @db.Timestamptz(6)
+  expires_at         DateTime?     @db.Timestamptz(6)
+  version            Int           @default(1)
+  created_at         DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime      @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by         String?       @db.Uuid
+  updated_by         String?       @db.Uuid
+
+  owner                       User                     @relation(fields: [owner_user_id], references: [id], onDelete: Restrict)
+  document_package_items      DocumentPackageItem[]
+  document_signatures         DocumentSignature[]
+  hash_chain                  HashChain[]
+  social_benefit_eligibilities SocialBenefitEligibility[]
+  lease_contract_allocations  RoomAllocation[]         @relation("RoomAllocationLeaseDocument")
+  handover_act_allocations    RoomAllocation[]         @relation("RoomAllocationHandoverDocument")
+  transcripts                 Transcript[]
+  certificates                Certificate[]
+
+  @@unique([storage_bucket, storage_key])
+  @@index([owner_user_id])
+  @@index([doc_type, status])
+  @@index([created_at(sort: Desc)])
+  // GIN-индекс на metadata (jsonb_path_ops) — только в raw SQL
+  @@map("documents")
+  @@schema("doc")
+}
+
+/// Пакет документов, подписываемый единой транзакцией.
+model DocumentPackage {
+  id          BigInt        @id @default(autoincrement())
+  public_id   String        @unique @default(uuid()) @db.Uuid
+  title       String        @db.VarChar(255)
+  description String?
+  status      PackageStatus @default(DRAFT)
+  context     Json          @default("{}")
+  signed_at   DateTime?     @db.Timestamptz(6)
+  created_at  DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime      @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by  String?       @db.Uuid
+  updated_by  String?       @db.Uuid
+
+  document_package_items DocumentPackageItem[]
+  document_signatures    DocumentSignature[]
+  hash_chain             HashChain[]
+
+  @@index([status])
+  @@map("document_packages")
+  @@schema("doc")
+}
+
+/// Связь «пакет ↔ документ» с порядком подписания (position).
+model DocumentPackageItem {
+  id          BigInt   @id @default(autoincrement())
+  package_id  BigInt
+  document_id BigInt
+  position    Int      @default(0)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  package  DocumentPackage @relation(fields: [package_id], references: [id], onDelete: Cascade)
+  document Document        @relation(fields: [document_id], references: [id], onDelete: Restrict)
+
+  @@unique([package_id, document_id])
+  @@index([document_id])
+  @@map("document_package_items")
+  @@schema("doc")
+}
+
+/// Электронные подписи (ЭЦП): CAdES/XAdES/PAdES.
+model DocumentSignature {
+  id                 BigInt          @id @default(autoincrement())
+  public_id          String          @unique @default(uuid()) @db.Uuid
+  document_id        BigInt?
+  package_id         BigInt?
+  signer_user_id     BigInt?
+  signer_type        SignerType      @default(USER)
+  signature_format   SignatureFormat @default(CADES)
+  status             SignatureStatus @default(PENDING)
+  signature_value    String?
+  certificate_info   Json            @default("{}")
+  ocsp_status        String?         @db.VarChar(32)
+  ocsp_checked_at    DateTime?       @db.Timestamptz(6)
+  signature_checksum String?         @db.Char(64)
+  signed_at          DateTime?       @db.Timestamptz(6)
+  created_at         DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime        @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by         String?         @db.Uuid
+  updated_by         String?         @db.Uuid
+
+  document Document?        @relation(fields: [document_id], references: [id], onDelete: Cascade)
+  package  DocumentPackage? @relation(fields: [package_id], references: [id], onDelete: Cascade)
+  signer   User?            @relation(fields: [signer_user_id], references: [id], onDelete: SetNull)
+
+  @@index([document_id])
+  @@index([package_id])
+  @@index([signer_user_id])
+  @@index([status])
+  @@map("document_signatures")
+  @@schema("doc")
+}
+
+/// Hash-chain: каждое звено = SHA-256(предыдущий_hash || payload).
+model HashChain {
+  id          BigInt        @id @default(autoincrement())
+  entry_hash  String        @unique @db.Char(64)
+  prev_hash   String?       @db.Char(64)
+  document_id BigInt?
+  package_id  BigInt?
+  position    Int           @default(0)
+  algorithm   HashAlgorithm @default(SHA_256)
+  payload_ref String?
+  metadata    Json          @default("{}")
+  created_at  DateTime      @default(now()) @db.Timestamptz(6)
+  created_by  String?       @db.Uuid
+
+  prev     HashChain?       @relation("HashChainPrev", fields: [prev_hash], references: [entry_hash], onDelete: Restrict)
+  next     HashChain[]      @relation("HashChainPrev")
+  document Document?        @relation(fields: [document_id], references: [id], onDelete: Cascade)
+  package  DocumentPackage? @relation(fields: [package_id], references: [id], onDelete: Cascade)
+
+  @@index([document_id])
+  @@index([package_id])
+  @@index([document_id, position])
+  @@map("hash_chain")
+  @@schema("doc")
+}
+
+// =====================================================================
+// Social Benefits
+// =====================================================================
+
+/// Справочник видов социальных льгот.
+model SocialBenefitType {
+  id                BigInt   @id @default(autoincrement())
+  code              String   @unique @db.VarChar(64)
+  name_ru           String   @db.VarChar(255)
+  name_kz           String   @db.VarChar(255)
+  description       String?
+  is_active         Boolean  @default(true)
+  requires_document Boolean  @default(true)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  eligibilities SocialBenefitEligibility[]
+
+  @@map("social_benefit_types")
+  @@schema("social")
+}
+
+/// Подтверждённое право пользователя на льготу.
+model SocialBenefitEligibility {
+  id               BigInt            @id @default(autoincrement())
+  public_id        String            @unique @default(uuid()) @db.Uuid
+  user_id          BigInt
+  benefit_type_id  BigInt
+  status           EligibilityStatus @default(PENDING)
+  valid_from       DateTime?         @db.Date
+  valid_to         DateTime?         @db.Date
+  source_import_id BigInt?
+  document_id      BigInt?
+  verified_at      DateTime?         @db.Timestamptz(6)
+  verified_by      String?           @db.Uuid
+  created_at       DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime          @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by       String?           @db.Uuid
+  updated_by       String?           @db.Uuid
+
+  user                       User                      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  benefit_type               SocialBenefitType         @relation(fields: [benefit_type_id], references: [id], onDelete: Restrict)
+  source_import              ExternalDataImport?       @relation(fields: [source_import_id], references: [id], onDelete: SetNull)
+  document                   Document?                 @relation(fields: [document_id], references: [id], onDelete: SetNull)
+  meal_applications          MealApplication[]
+  accommodation_applications AccommodationApplication[]
+
+  @@index([user_id])
+  @@index([benefit_type_id])
+  @@index([status])
+  @@index([valid_to])
+  @@map("social_benefit_eligibilities")
+  @@schema("social")
+}
+
+/// Заявление на льготное питание.
+model MealApplication {
+  id                   BigInt                @id @default(autoincrement())
+  public_id            String                @unique @default(uuid()) @db.Uuid
+  user_id              BigInt
+  eligibility_id       BigInt?
+  status               MealApplicationStatus @default(DRAFT)
+  meal_period          MealPeriod            @default(ALL_DAY)
+  valid_from           DateTime?             @db.Date
+  valid_to             DateTime?             @db.Date
+  canteen_id           String?               @db.VarChar(64)
+  external_sync_status String?               @db.VarChar(32)
+  rejected_reason      String?
+  submitted_at         DateTime?             @db.Timestamptz(6)
+  approved_at          DateTime?             @db.Timestamptz(6)
+  created_at           DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime              @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by           String?               @db.Uuid
+  updated_by           String?               @db.Uuid
+
+  user        User                      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  eligibility SocialBenefitEligibility? @relation(fields: [eligibility_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id])
+  @@index([status])
+  @@index([eligibility_id])
+  @@map("meal_applications")
+  @@schema("social")
+}
+
+// =====================================================================
+// Accommodation
+// =====================================================================
+
+/// Общежитие (dormitory).
+model Dormitory {
+  id             BigInt          @id @default(autoincrement())
+  public_id      String          @unique @default(uuid()) @db.Uuid
+  code           String          @unique @db.VarChar(32)
+  name_ru        String          @db.VarChar(255)
+  name_kz        String          @db.VarChar(255)
+  address        String
+  status         DormitoryStatus @default(ACTIVE)
+  gender_policy  GenderPolicy    @default(ANY)
+  total_capacity Int             @default(0)
+  admin_user_id  BigInt?
+  metadata       Json            @default("{}")
+  created_at     DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime        @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by     String?         @db.Uuid
+  updated_by     String?         @db.Uuid
+
+  admin                       User?                       @relation(fields: [admin_user_id], references: [id], onDelete: SetNull)
+  rooms                       Room[]
+  accommodation_applications  AccommodationApplication[]
+
+  @@index([status])
+  @@map("dormitories")
+  @@schema("acc")
+}
+
+/// Категории комнат с тарифом найма.
+model RoomType {
+  id          BigInt   @id @default(autoincrement())
+  code        String   @unique @db.VarChar(64)
+  name_ru     String   @db.VarChar(255)
+  name_kz     String   @db.VarChar(255)
+  capacity    Int      @default(2)
+  monthly_fee Decimal? @db.Decimal(14,2)
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  rooms Room[]
+
+  @@map("room_types")
+  @@schema("acc")
+}
+
+/// Комната общежития. `occupied` — денормализованный счётчик.
+model Room {
+  id           BigInt     @id @default(autoincrement())
+  public_id    String     @unique @default(uuid()) @db.Uuid
+  dormitory_id BigInt
+  room_type_id BigInt
+  room_number  String     @db.VarChar(32)
+  floor        Int?
+  status       RoomStatus @default(FREE)
+  capacity     Int        @default(2)
+  occupied     Int        @default(0)
+  metadata     Json       @default("{}")
+  created_at   DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime   @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by   String?    @db.Uuid
+  updated_by   String?    @db.Uuid
+
+  dormitory                   Dormitory                  @relation(fields: [dormitory_id], references: [id], onDelete: Restrict)
+  room_type                   RoomType                   @relation(fields: [room_type_id], references: [id], onDelete: Restrict)
+  accommodation_applications  AccommodationApplication[]
+  room_allocations            RoomAllocation[]
+
+  @@unique([dormitory_id, room_number])
+  @@index([dormitory_id])
+  @@index([room_type_id])
+  @@index([status])
+  @@map("rooms")
+  @@schema("acc")
+}
+
+/// Заявка студента на место в общежитии.
+model AccommodationApplication {
+  id                     BigInt            @id @default(autoincrement())
+  public_id              String            @unique @default(uuid()) @db.Uuid
+  user_id                BigInt
+  academic_term_id       BigInt?
+  preferred_dormitory_id BigInt?
+  preferred_room_id      BigInt?
+  eligibility_id         BigInt?
+  status                 ApplicationStatus @default(DRAFT)
+  priority               Int               @default(0)
+  queue_position         Int?
+  submitted_at           DateTime?         @db.Timestamptz(6)
+  decided_at             DateTime?         @db.Timestamptz(6)
+  decided_by             String?           @db.Uuid
+  rejection_reason       String?
+  metadata               Json              @default("{}")
+  created_at             DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime          @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by             String?           @db.Uuid
+  updated_by             String?           @db.Uuid
+
+  user                User                      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  academic_term       AcademicTerm?             @relation(fields: [academic_term_id], references: [id], onDelete: SetNull)
+  preferred_dormitory Dormitory?                @relation(fields: [preferred_dormitory_id], references: [id], onDelete: SetNull)
+  preferred_room      Room?                     @relation(fields: [preferred_room_id], references: [id], onDelete: SetNull)
+  eligibility         SocialBenefitEligibility? @relation(fields: [eligibility_id], references: [id], onDelete: SetNull)
+  room_allocations    RoomAllocation[]
+
+  @@index([user_id])
+  @@index([status])
+  @@index([preferred_dormitory_id])
+  @@index([eligibility_id])
+  @@map("accommodation_applications")
+  @@schema("acc")
+}
+
+/// Выделенное место/комната конкретному студенту.
+model RoomAllocation {
+  id                         BigInt            @id @default(autoincrement())
+  public_id                  String            @unique @default(uuid()) @db.Uuid
+  application_id             BigInt
+  room_id                    BigInt
+  user_id                    BigInt
+  status                     AllocationStatus  @default(PENDING_MOVE_IN)
+  lease_contract_document_id BigInt?
+  handover_act_document_id   BigInt?
+  contract_terms             Json              @default("{}")
+  check_in_date              DateTime?         @db.Date
+  check_out_date             DateTime?         @db.Date
+  created_at                 DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime          @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by                 String?           @db.Uuid
+  updated_by                 String?           @db.Uuid
+
+  application     AccommodationApplication @relation(fields: [application_id], references: [id], onDelete: Restrict)
+  room            Room                     @relation(fields: [room_id], references: [id], onDelete: Restrict)
+  user            User                     @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  lease_contract  Document?                @relation("RoomAllocationLeaseDocument", fields: [lease_contract_document_id], references: [id], onDelete: Restrict)
+  handover_act    Document?                @relation("RoomAllocationHandoverDocument", fields: [handover_act_document_id], references: [id], onDelete: Restrict)
+
+  @@index([user_id])
+  @@index([room_id])
+  @@index([status])
+  @@index([application_id])
+  // Частичный уникальный индекс uq_room_allocations_active_user (WHERE status IN ('PENDING_MOVE_IN','ACTIVE')) — только в raw SQL
+  @@map("room_allocations")
+  @@schema("acc")
+}
+
+// =====================================================================
+// Academic (LMS)
+// =====================================================================
+
+/// Учебный период (семестр/триместр).
+model AcademicTerm {
+  id            BigInt   @id @default(autoincrement())
+  public_id     String   @unique @default(uuid()) @db.Uuid
+  code          String   @unique @db.VarChar(64)
+  name_ru       String   @db.VarChar(255)
+  name_kz       String   @db.VarChar(255)
+  term_type     TermType @default(SEMESTER)
+  academic_year String   @db.VarChar(16)
+  starts_on     DateTime @db.Date
+  ends_on       DateTime @db.Date
+  is_current    Boolean  @default(false)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by    String?  @db.Uuid
+  updated_by    String?  @db.Uuid
+
+  course_instances            CourseInstance[]
+  schedules                   Schedule[]
+  transcripts                 Transcript[]
+  electives                   Elective[]
+  accommodation_applications  AccommodationApplication[]
+
+  @@index([starts_on, ends_on])
+  @@map("academic_terms")
+  @@schema("acad")
+}
+
+/// Справочник учебных дисциплин (курсов).
+model Course {
+  id           BigInt    @id @default(autoincrement())
+  public_id    String    @unique @default(uuid()) @db.Uuid
+  code         String    @unique @db.VarChar(64)
+  name_ru      String    @db.VarChar(255)
+  name_kz      String    @db.VarChar(255)
+  credits_ects Decimal?  @db.Decimal(4,1)
+  description  String?
+  is_active    Boolean   @default(true)
+  deleted_at   DateTime? @db.Timestamptz(6)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by   String?   @db.Uuid
+  updated_by   String?   @db.Uuid
+
+  course_instances CourseInstance[]
+
+  @@map("courses")
+  @@schema("acad")
+}
+
+/// Реализация дисциплины в конкретном семестре (поток/секция).
+model CourseInstance {
+  id              BigInt    @id @default(autoincrement())
+  public_id       String    @unique @default(uuid()) @db.Uuid
+  course_id       BigInt
+  term_id         BigInt
+  lecturer_user_id BigInt?
+  section         String    @default("A") @db.VarChar(32)
+  capacity        Int?
+  is_elective     Boolean   @default(false)
+  external_lms_id String?   @db.VarChar(64)
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by      String?   @db.Uuid
+  updated_by      String?   @db.Uuid
+
+  course             Course            @relation(fields: [course_id], references: [id], onDelete: Restrict)
+  term               AcademicTerm      @relation(fields: [term_id], references: [id], onDelete: Restrict)
+  lecturer           User?             @relation(fields: [lecturer_user_id], references: [id], onDelete: SetNull)
+  enrollments        Enrollment[]
+  schedules          Schedule[]
+  grade_components   GradeComponent[]
+  transcript_items   TranscriptItem[]
+  electives          Elective[]
+  assignments        Assignment[]
+  quizzes            Quiz[]
+  conversations      Conversation[]
+
+  @@unique([course_id, term_id, section])
+  @@index([term_id])
+  @@index([lecturer_user_id])
+  @@index([external_lms_id])
+  @@map("course_instances")
+  @@schema("acad")
+}
+
+/// Запись студента на курс (enrollment).
+model Enrollment {
+  id                 BigInt           @id @default(autoincrement())
+  public_id          String           @unique @default(uuid()) @db.Uuid
+  course_instance_id BigInt
+  student_user_id    BigInt
+  status             EnrollmentStatus @default(ACTIVE)
+  enrolled_at        DateTime         @default(now()) @db.Timestamptz(6)
+  dropped_at         DateTime?        @db.Timestamptz(6)
+  created_at         DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime         @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by         String?          @db.Uuid
+  updated_by         String?          @db.Uuid
+
+  course_instance CourseInstance @relation(fields: [course_instance_id], references: [id], onDelete: Restrict)
+  student         User           @relation(fields: [student_user_id], references: [id], onDelete: Restrict)
+  grades          Grade[]
+
+  @@unique([course_instance_id, student_user_id])
+  @@index([student_user_id])
+  @@index([status])
+  @@map("enrollments")
+  @@schema("acad")
+}
+
+/// Расписание занятий (шапка) для курса/потока в семестре.
+model Schedule {
+  id                 BigInt    @id @default(autoincrement())
+  public_id          String    @unique @default(uuid()) @db.Uuid
+  course_instance_id BigInt
+  term_id            BigInt
+  title              String    @db.VarChar(255)
+  is_published       Boolean   @default(false)
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by         String?   @db.Uuid
+  updated_by         String?   @db.Uuid
+
+  course_instance  CourseInstance  @relation(fields: [course_instance_id], references: [id], onDelete: Cascade)
+  term             AcademicTerm    @relation(fields: [term_id], references: [id], onDelete: Restrict)
+  schedule_entries ScheduleEntry[]
+
+  @@index([course_instance_id])
+  @@index([term_id])
+  @@map("schedules")
+  @@schema("acad")
+}
+
+/// Отдельное занятие в расписании (день недели + время + аудитория).
+model ScheduleEntry {
+  id               BigInt            @id @default(autoincrement())
+  schedule_id      BigInt
+  weekday          Weekday
+  start_time       DateTime          @db.Time
+  end_time         DateTime          @db.Time
+  entry_type       ScheduleEntryType @default(LECTURE)
+  location         String?           @db.VarChar(255)
+  lecturer_user_id BigInt?
+  recurrence       Json              @default("{}")
+  created_at       DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime          @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by       String?           @db.Uuid
+  updated_by       String?           @db.Uuid
+
+  schedule Schedule @relation(fields: [schedule_id], references: [id], onDelete: Cascade)
+  lecturer User?    @relation(fields: [lecturer_user_id], references: [id], onDelete: SetNull)
+
+  @@index([schedule_id])
+  @@index([weekday, start_time])
+  @@map("schedule_entries")
+  @@schema("acad")
+}
+
+/// Компоненты итоговой оценки курса (вес каждого компонента).
+model GradeComponent {
+  id                 BigInt   @id @default(autoincrement())
+  course_instance_id BigInt
+  name               String   @db.VarChar(255)
+  weight             Decimal  @db.Decimal(5,2)
+  max_points         Decimal  @db.Decimal(7,2)
+  is_final           Boolean  @default(false)
+  sort_order         Int      @default(0)
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  course_instance CourseInstance @relation(fields: [course_instance_id], references: [id], onDelete: Cascade)
+  grades          Grade[]
+
+  @@index([course_instance_id])
+  @@map("grade_components")
+  @@schema("acad")
+}
+
+/// Оценка студента: по компоненту или итоговая (grade_component_id = NULL).
+model Grade {
+  id                 BigInt      @id @default(autoincrement())
+  public_id          String      @unique @default(uuid()) @db.Uuid
+  enrollment_id      BigInt
+  grade_component_id BigInt?
+  points             Decimal?    @db.Decimal(7,2)
+  max_points         Decimal?    @db.Decimal(7,2)
+  percentage         Decimal?    @db.Decimal(6,2)
+  letter_grade       String?     @db.Char(2)
+  gpa_points         Decimal?    @db.Decimal(4,2)
+  status             GradeStatus @default(PENDING)
+  recorded_by        BigInt?
+  recorded_at        DateTime?   @db.Timestamptz(6)
+  external_lms_id    String?     @db.VarChar(64)
+  created_at         DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime    @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by         String?     @db.Uuid
+  updated_by         String?     @db.Uuid
+
+  enrollment        Enrollment      @relation(fields: [enrollment_id], references: [id], onDelete: Cascade)
+  grade_component   GradeComponent? @relation(fields: [grade_component_id], references: [id], onDelete: Cascade)
+  recorded_by_user  User?           @relation(fields: [recorded_by], references: [id], onDelete: SetNull)
+  transcript_items  TranscriptItem[]
+  appeals           Appeal[]
+
+  @@index([enrollment_id])
+  @@index([grade_component_id])
+  @@index([status])
+  // Частичный уникальный индекс uq_grades_final_per_enrollment (WHERE grade_component_id IS NULL) — только в raw SQL
+  @@map("grades")
+  @@schema("acad")
+}
+
+/// Транскрипт студента (сводная выписка успеваемости).
+model Transcript {
+  id              BigInt         @id @default(autoincrement())
+  public_id       String         @unique @default(uuid()) @db.Uuid
+  student_user_id BigInt
+  term_id         BigInt?
+  document_id     BigInt?
+  gpa_total       Decimal?       @db.Decimal(5,3)
+  credits_total   Decimal?       @db.Decimal(6,1)
+  status          DocumentStatus @default(DRAFT)
+  issued_at       DateTime?      @db.Timestamptz(6)
+  created_at      DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime       @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by      String?        @db.Uuid
+  updated_by      String?        @db.Uuid
+
+  student          User             @relation(fields: [student_user_id], references: [id], onDelete: Restrict)
+  term             AcademicTerm?    @relation(fields: [term_id], references: [id], onDelete: SetNull)
+  document         Document?        @relation(fields: [document_id], references: [id], onDelete: SetNull)
+  transcript_items TranscriptItem[]
+
+  @@index([student_user_id])
+  @@index([term_id])
+  @@map("transcripts")
+  @@schema("acad")
+}
+
+/// Строка транскрипта: снапшот результата по курсу.
+model TranscriptItem {
+  id                 BigInt    @id @default(autoincrement())
+  transcript_id      BigInt
+  course_instance_id BigInt?
+  grade_id           BigInt?
+  course_code        String    @db.VarChar(64)
+  course_name        String    @db.VarChar(255)
+  credits_ects       Decimal?  @db.Decimal(4,1)
+  letter_grade       String?   @db.Char(2)
+  gpa_points         Decimal?  @db.Decimal(4,2)
+
+  transcript      Transcript      @relation(fields: [transcript_id], references: [id], onDelete: Cascade)
+  course_instance CourseInstance? @relation(fields: [course_instance_id], references: [id], onDelete: SetNull)
+  grade           Grade?          @relation(fields: [grade_id], references: [id], onDelete: SetNull)
+
+  @@unique([transcript_id, course_instance_id])
+  @@index([transcript_id])
+  @@map("transcript_items")
+  @@schema("acad")
+}
+
+/// Апелляция студента на выставленную оценку.
+model Appeal {
+  id               BigInt       @id @default(autoincrement())
+  public_id        String       @unique @default(uuid()) @db.Uuid
+  grade_id         BigInt
+  student_user_id  BigInt
+  reviewer_user_id BigInt?
+  status           AppealStatus @default(SUBMITTED)
+  reason           String
+  decision         String?
+  decided_at       DateTime?    @db.Timestamptz(6)
+  created_at       DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime     @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by       String?      @db.Uuid
+  updated_by       String?      @db.Uuid
+
+  grade    Grade  @relation(fields: [grade_id], references: [id], onDelete: Restrict)
+  student  User   @relation("AppealStudent", fields: [student_user_id], references: [id], onDelete: Restrict)
+  reviewer User?  @relation("AppealReviewer", fields: [reviewer_user_id], references: [id], onDelete: SetNull)
+
+  @@index([grade_id])
+  @@index([student_user_id])
+  @@index([status])
+  @@map("appeals")
+  @@schema("acad")
+}
+
+/// Элективный курс с квотой и дедлайном записи.
+model Elective {
+  id                    BigInt         @id @default(autoincrement())
+  public_id             String         @unique @default(uuid()) @db.Uuid
+  course_instance_id    BigInt
+  term_id               BigInt
+  status                ElectiveStatus @default(OPEN)
+  max_students          Int?
+  enrolled_count        Int            @default(0)
+  registration_deadline DateTime?      @db.Timestamptz(6)
+  created_at            DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime       @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by            String?        @db.Uuid
+  updated_by            String?        @db.Uuid
+
+  course_instance CourseInstance @relation(fields: [course_instance_id], references: [id], onDelete: Cascade)
+  term            AcademicTerm   @relation(fields: [term_id], references: [id], onDelete: Restrict)
+
+  @@index([term_id])
+  @@index([status])
+  @@map("electives")
+  @@schema("acad")
+}
+
+/// Домашнее задание по курсу.
+model Assignment {
+  id                 BigInt    @id @default(autoincrement())
+  public_id          String    @unique @default(uuid()) @db.Uuid
+  course_instance_id BigInt
+  title              String    @db.VarChar(255)
+  description        String?
+  max_points         Decimal?  @db.Decimal(7,2)
+  opens_at           DateTime? @db.Timestamptz(6)
+  due_at             DateTime? @db.Timestamptz(6)
+  closes_at          DateTime? @db.Timestamptz(6)
+  is_published       Boolean   @default(false)
+  attachments        Json      @default("[]")
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by         String?   @db.Uuid
+  updated_by         String?   @db.Uuid
+
+  course_instance CourseInstance @relation(fields: [course_instance_id], references: [id], onDelete: Cascade)
+  submissions     Submission[]
+
+  @@index([course_instance_id])
+  @@index([due_at])
+  @@map("assignments")
+  @@schema("acad")
+}
+
+/// Сдача домашнего задания студентом.
+model Submission {
+  id              BigInt           @id @default(autoincrement())
+  public_id       String           @unique @default(uuid()) @db.Uuid
+  assignment_id   BigInt
+  student_user_id BigInt
+  status          SubmissionStatus @default(NOT_SUBMITTED)
+  submitted_at    DateTime?        @db.Timestamptz(6)
+  graded_at       DateTime?        @db.Timestamptz(6)
+  points          Decimal?         @db.Decimal(7,2)
+  feedback        String?
+  files           Json             @default("[]")
+  created_at      DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime         @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by      String?          @db.Uuid
+  updated_by      String?          @db.Uuid
+
+  assignment Assignment @relation(fields: [assignment_id], references: [id], onDelete: Cascade)
+  student    User       @relation(fields: [student_user_id], references: [id], onDelete: Restrict)
+
+  @@unique([assignment_id, student_user_id])
+  @@index([assignment_id])
+  @@index([student_user_id])
+  @@index([status])
+  @@map("submissions")
+  @@schema("acad")
+}
+
+/// Тест/квиз по курсу.
+model Quiz {
+  id                 BigInt     @id @default(autoincrement())
+  public_id          String     @unique @default(uuid()) @db.Uuid
+  course_instance_id BigInt
+  title              String     @db.VarChar(255)
+  description        String?
+  status             QuizStatus @default(DRAFT)
+  time_limit_seconds Int?
+  max_attempts       Int?
+  opens_at           DateTime?  @db.Timestamptz(6)
+  closes_at          DateTime?  @db.Timestamptz(6)
+  shuffle_questions  Boolean    @default(false)
+  created_at         DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime   @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by         String?    @db.Uuid
+  updated_by         String?    @db.Uuid
+
+  course_instance CourseInstance @relation(fields: [course_instance_id], references: [id], onDelete: Cascade)
+  quiz_questions  QuizQuestion[]
+  quiz_attempts   QuizAttempt[]
+
+  @@index([course_instance_id])
+  @@index([status])
+  @@map("quizzes")
+  @@schema("acad")
+}
+
+/// Вопрос теста с вариантами ответов (JSONB).
+model QuizQuestion {
+  id            BigInt   @id @default(autoincrement())
+  quiz_id       BigInt
+  position      Int      @default(0)
+  question_type String   @default("single") @db.VarChar(32)
+  prompt        String
+  options       Json     @default("[]")
+  points        Decimal  @default(1) @db.Decimal(6,2)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  quiz         Quiz         @relation(fields: [quiz_id], references: [id], onDelete: Cascade)
+  quiz_answers QuizAnswer[]
+
+  @@index([quiz_id])
+  @@map("quiz_questions")
+  @@schema("acad")
+}
+
+/// Попытка студента пройти тест.
+model QuizAttempt {
+  id              BigInt            @id @default(autoincrement())
+  public_id       String            @unique @default(uuid()) @db.Uuid
+  quiz_id         BigInt
+  student_user_id BigInt
+  status          QuizAttemptStatus @default(IN_PROGRESS)
+  attempt_number  Int               @default(1)
+  started_at      DateTime          @default(now()) @db.Timestamptz(6)
+  submitted_at    DateTime?         @db.Timestamptz(6)
+  score           Decimal?          @db.Decimal(7,2)
+  max_score       Decimal?          @db.Decimal(7,2)
+  created_at      DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime          @default(now()) @updatedAt @db.Timestamptz(6)
+
+  quiz         Quiz         @relation(fields: [quiz_id], references: [id], onDelete: Cascade)
+  student      User         @relation(fields: [student_user_id], references: [id], onDelete: Restrict)
+  quiz_answers QuizAnswer[]
+
+  @@unique([quiz_id, student_user_id, attempt_number])
+  @@index([quiz_id])
+  @@index([student_user_id])
+  @@map("quiz_attempts")
+  @@schema("acad")
+}
+
+/// Ответ студента на конкретный вопрос теста.
+model QuizAnswer {
+  id             BigInt    @id @default(autoincrement())
+  attempt_id     BigInt
+  question_id    BigInt
+  answer         Json
+  is_correct     Boolean?
+  points_awarded Decimal?  @db.Decimal(6,2)
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+
+  attempt  QuizAttempt  @relation(fields: [attempt_id], references: [id], onDelete: Cascade)
+  question QuizQuestion @relation(fields: [question_id], references: [id], onDelete: Restrict)
+
+  @@unique([attempt_id, question_id])
+  @@index([attempt_id])
+  @@index([question_id])
+  @@map("quiz_answers")
+  @@schema("acad")
+}
+
+/// Диалог/чат (личный, групповой, по курсу, поддержка).
+model Conversation {
+  id                 BigInt             @id @default(autoincrement())
+  public_id          String             @unique @default(uuid()) @db.Uuid
+  owner_user_id      BigInt?
+  course_instance_id BigInt?
+  conv_type          ConversationType   @default(DIRECT)
+  status             ConversationStatus @default(ACTIVE)
+  title              String?            @db.VarChar(255)
+  created_at         DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime           @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by         String?            @db.Uuid
+  updated_by         String?            @db.Uuid
+
+  owner                     User?                       @relation(fields: [owner_user_id], references: [id], onDelete: SetNull)
+  course_instance           CourseInstance?            @relation(fields: [course_instance_id], references: [id], onDelete: SetNull)
+  conversation_participants ConversationParticipant[]
+  messages                  Message[]
+
+  @@index([owner_user_id])
+  @@index([course_instance_id])
+  @@map("conversations")
+  @@schema("acad")
+}
+
+/// Участник чата (с метками прочтения).
+model ConversationParticipant {
+  id              BigInt    @id @default(autoincrement())
+  conversation_id BigInt
+  user_id         BigInt
+  joined_at       DateTime  @default(now()) @db.Timestamptz(6)
+  last_read_at    DateTime? @db.Timestamptz(6)
+  is_muted        Boolean   @default(false)
+
+  conversation Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([conversation_id, user_id])
+  @@index([user_id])
+  @@map("conversation_participants")
+  @@schema("acad")
+}
+
+/// Сообщение в чате (append-only).
+model Message {
+  id                  BigInt      @id @default(autoincrement())
+  public_id           String      @unique @default(uuid()) @db.Uuid
+  conversation_id     BigInt
+  sender_user_id      BigInt?
+  msg_type            MessageType @default(TEXT)
+  body                String?
+  attachments         Json        @default("[]")
+  reply_to_message_id BigInt?
+  created_at          DateTime    @default(now()) @db.Timestamptz(6)
+
+  conversation Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  sender       User?        @relation(fields: [sender_user_id], references: [id], onDelete: SetNull)
+  reply_to     Message?     @relation("MessageReply", fields: [reply_to_message_id], references: [id], onDelete: SetNull)
+  replies      Message[]    @relation("MessageReply")
+
+  @@index([conversation_id, created_at(sort: Desc)])
+  @@index([sender_user_id])
+  @@map("messages")
+  @@schema("acad")
+}
+
+// =====================================================================
+// University Services
+// =====================================================================
+
+/// Заявка/выдача справки, подписанной серверной ЭЦП вуза.
+model Certificate {
+  id              BigInt           @id @default(autoincrement())
+  public_id       String           @unique @default(uuid()) @db.Uuid
+  user_id         BigInt
+  cert_type       CertificateType
+  status          CertificateStatus @default(REQUESTED)
+  document_id     BigInt?
+  purpose         String?
+  requested_at    DateTime         @default(now()) @db.Timestamptz(6)
+  issued_at       DateTime?        @db.Timestamptz(6)
+  expires_at      DateTime?        @db.Timestamptz(6)
+  rejected_reason String?
+  created_at      DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime         @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by      String?          @db.Uuid
+  updated_by      String?          @db.Uuid
+
+  user     User      @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  document Document? @relation(fields: [document_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id])
+  @@index([status])
+  @@index([cert_type])
+  @@map("certificates")
+  @@schema("svc")
+}
+
+/// Счёт на оплату (обучение, общежитие).
+model PaymentInvoice {
+  id             BigInt       @id @default(autoincrement())
+  public_id      String       @unique @default(uuid()) @db.Uuid
+  user_id        BigInt
+  invoice_number String       @unique @db.VarChar(64)
+  title          String       @db.VarChar(255)
+  amount         Decimal      @db.Decimal(14,2)
+  currency       String       @default("KZT") @db.Char(3)
+  status         InvoiceStatus @default(ISSUED)
+  description    String?
+  due_at         DateTime?    @db.Date
+  paid_at        DateTime?    @db.Timestamptz(6)
+  created_at     DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime     @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by     String?      @db.Uuid
+  updated_by     String?      @db.Uuid
+
+  user     User      @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  payments Payment[]
+
+  @@index([user_id])
+  @@index([status])
+  @@map("payment_invoices")
+  @@schema("svc")
+}
+
+/// Платёж по счёту.
+model Payment {
+  id                  BigInt        @id @default(autoincrement())
+  public_id           String        @unique @default(uuid()) @db.Uuid
+  invoice_id          BigInt
+  user_id             BigInt
+  amount              Decimal       @db.Decimal(14,2)
+  currency            String        @default("KZT") @db.Char(3)
+  status              PaymentStatus @default(CREATED)
+  method              PaymentMethod @default(CARD)
+  provider            String?       @db.VarChar(32)
+  provider_payment_id String?       @db.VarChar(128)
+  provider_response   Json?
+  idempotency_key     String?       @db.VarChar(128)
+  paid_at             DateTime?     @db.Timestamptz(6)
+  created_at          DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime      @default(now()) @updatedAt @db.Timestamptz(6)
+  created_by          String?       @db.Uuid
+  updated_by          String?       @db.Uuid
+
+  invoice PaymentInvoice @relation(fields: [invoice_id], references: [id], onDelete: Restrict)
+  user    User           @relation(fields: [user_id], references: [id], onDelete: Restrict)
+
+  @@index([invoice_id])
+  @@index([user_id])
+  @@index([status])
+  @@index([provider, provider_payment_id])
+  @@map("payments")
+  @@schema("svc")
+}
+
+// =====================================================================
+// Notification
+// =====================================================================
+
+/// Уведомления (e-mail/SMS/push/in-app). Партиционирована по created_at.
+/// id — IDENTITY в БД (raw-миграция); в Prisma без autoincrement из-за
+/// композитного PK (id, created_at), требуемого партиционированием.
+model Notification {
+  id            BigInt
+  public_id     String               @unique @default(uuid()) @db.Uuid
+  user_id       BigInt
+  channel       NotificationChannel
+  status        NotificationStatus   @default(PENDING)
+  priority      NotificationPriority @default(NORMAL)
+  subject       String?              @db.VarChar(255)
+  body          String?
+  payload       Json                 @default("{}")
+  scheduled_at  DateTime?            @db.Timestamptz(6)
+  sent_at       DateTime?            @db.Timestamptz(6)
+  read_at       DateTime?            @db.Timestamptz(6)
+  error_message String?
+  created_at    DateTime             @default(now()) @db.Timestamptz(6)
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@id([id, created_at])
+  @@index([user_id])
+  @@index([status])
+  // GIN-индекс на payload (jsonb_path_ops) — только в raw SQL (V010__notif.sql)
+  @@map("notifications")
+  @@schema("notif")
+}
+
+// =====================================================================
+// Ops / Audit
+// =====================================================================
+
+/// Гарантия идемпотентности операций.
+model IdempotencyKey {
+  id              BigInt    @id @default(autoincrement())
+  idempotency_key String    @db.VarChar(128)
+  scope           String    @db.VarChar(64)
+  request_hash    String    @db.Char(64)
+  response_status Int?      @db.SmallInt
+  response_body   Json?
+  status          String    @default("IN_PROGRESS") @db.VarChar(32)
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  expires_at      DateTime  @db.Timestamptz(6)
+
+  @@unique([scope, idempotency_key])
+  @@index([expires_at])
+  @@map("idempotency_keys")
+  @@schema("ops")
+}
+
+/// Transactional outbox: события записываются в той же транзакции, что и бизнес-данные.
+/// Партиционирована по created_at; id — IDENTITY в БД (композитный PK в raw-миграции).
+model OutboxEvent {
+  id             BigInt
+  public_id      String      @unique @default(uuid()) @db.Uuid
+  aggregate_type String      @db.VarChar(64)
+  aggregate_id   String      @db.Uuid
+  event_type     String      @db.VarChar(128)
+  payload        Json        @default("{}")
+  status         OutboxStatus @default(PENDING)
+  topic          String?     @db.VarChar(255)
+  attempt_count  Int         @default(0)
+  available_at   DateTime    @default(now()) @db.Timestamptz(6)
+  published_at   DateTime?   @db.Timestamptz(6)
+  last_error     String?
+  created_at     DateTime    @default(now()) @db.Timestamptz(6)
+
+  @@id([id, created_at])
+  @@index([status, available_at])
+  @@index([aggregate_type, aggregate_id])
+  // GIN-индекс на payload и частичный idx_outbox_events_pending — только в raw SQL (V011__ops.sql)
+  @@map("outbox_events")
+  @@schema("ops")
+}
+
+/// Неизменяемый аудит-журнал всех юридически значимых действий. Append-only.
+/// Партиционирована по created_at; id — IDENTITY в БД (композитный PK в raw-миграции).
+model AuditLog {
+  id            BigInt
+  public_id     String    @unique @default(uuid()) @db.Uuid
+  actor_id      String?   @db.Uuid
+  actor_type    String?   @db.VarChar(32)
+  action        String    @db.VarChar(64)
+  resource_type String?   @db.VarChar(64)
+  resource_id   String?   @db.Uuid
+  ip_address    String?   @db.Inet
+  user_agent    String?
+  trace_id      String?   @db.Uuid
+  status        String    @default("SUCCESS") @db.VarChar(16)
+  context       Json      @default("{}")
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@id([id, created_at])
+  @@index([actor_id])
+  @@index([action])
+  @@index([resource_type, resource_id])
+  @@index([created_at(sort: Desc)])
+  // GIN-индекс на context (jsonb_path_ops) — только в raw SQL (V011__ops.sql)
+  @@map("audit_log")
+  @@schema("ops")
+}

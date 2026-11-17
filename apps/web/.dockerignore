@@ -1,0 +1,15 @@
+node_modules
+.next
+out
+.git
+.gitignore
+*.md
+.idea
+.vscode
+.env*
+!.env.example
+Dockerfile
+.dockerignore
+apps/*/node_modules
+apps/*/.next
+apps/*/dist

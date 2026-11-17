@@ -1,0 +1,53 @@
+{
+  "realm": "student-portal",
+  "enabled": true,
+  "loginTheme": "keycloak",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "internationalizationEnabled": true,
+  "supportedLocales": ["ru", "kk"],
+  "defaultLocale": "ru",
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "roles": {
+    "realm": [
+      { "name": "STUDENT", "description": "Студент" },
+      { "name": "LECTURER", "description": "Преподаватель" },
+      { "name": "DEANERY", "description": "Деканат" },
+      { "name": "FINANCE", "description": "Бухгалтерия" },
+      { "name": "DORM_ADMIN", "description": "Администратор общежития" },
+      { "name": "CANTEEN_ADMIN", "description": "Администратор столовой" },
+      { "name": "ADMIN", "description": "Администратор системы" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "portal-web",
+      "name": "Student Super-App Web",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "http://localhost:3001/*",
+        "http://localhost:3000/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3001",
+        "http://localhost:3000"
+      ],
+      "defaultRoles": []
+    },
+    {
+      "clientId": "portal-api",
+      "name": "Student Super-App API",
+      "enabled": true,
+      "publicClient": false,
+      "bearerOnly": true,
+      "serviceAccountsEnabled": true,
+      "defaultRoles": []
+    }
+  ]
+}
